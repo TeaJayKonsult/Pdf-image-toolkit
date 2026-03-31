@@ -102,13 +102,13 @@ header p{font-size:12px;color:rgba(255,255,255,0.75);margin-top:4px;}
 .img-preview.show{display:block;}
 .preview-canvas{width:100%;max-height:240px;border-radius:10px;border:1.5px solid var(--border);margin-bottom:12px;display:none;}
 .preview-canvas.show{display:block;}
-.pdf-viewer{border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px;display:none;}
+.pdf-viewer{border:1.5px solid var(--border);border-radius:14px;overflow:auto;margin-bottom:14px;display:none;max-height:70vh;}
 .pdf-viewer.show{display:block;}
 .pdf-nav{background:var(--teal-soft);border-bottom:1px solid var(--teal-border);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;}
 .pdf-nav span{font-size:13px;font-weight:600;color:var(--teal-dark);}
 .pdf-nav button{background:var(--teal);color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;}
 .pdf-nav button:disabled{opacity:.4;cursor:not-allowed;}
-#pdfCanvas{width:100%;display:block;}
+#pdfCanvas{display:block;width:100%;height:auto;}
 .text-output{background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:14px;font-size:13px;color:var(--text);line-height:1.7;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;display:none;margin-bottom:12px;}
 .text-output.show{display:block;}
 .progress-wrap{margin-bottom:14px;display:none;}
@@ -179,7 +179,7 @@ footer{text-align:center;padding:16px;font-size:12px;color:var(--mute);border-to
     <div class="tool-card" onclick="showTool('pdf-info')"><span class="tool-icon">ℹ️</span><div class="tool-name">PDF Info</div><div class="tool-desc">Page count, metadata</div></div>
   </div>
 
-  <!-- VIEW PDF PANEL -->
+  <!-- VIEW PDF (enhanced with zoom) -->
   <div class="tool-panel" id="tool-pdf-view">
     <div class="panel-title">👁️ View PDF</div>
     <div class="panel-sub">Open any PDF and read it directly in the app</div>
@@ -196,6 +196,14 @@ footer{text-align:center;padding:16px;font-size:12px;color:var(--mute);border-to
         <button onclick="nextPage()" id="nextBtn" disabled>Next ›</button>
       </div>
       <canvas id="pdfCanvas"></canvas>
+    </div>
+    <!-- Zoom controls -->
+    <div class="control-group">
+      <span class="control-label">Zoom</span>
+      <div class="range-wrap">
+        <input type="range" class="ctrl-range" id="zoomRange" min="0.5" max="3" step="0.01" value="1.5" oninput="setZoom(this.value)">
+        <span class="range-val" id="zoomVal">150%</span>
+      </div>
     </div>
   </div>
 
@@ -281,7 +289,7 @@ footer{text-align:center;padding:16px;font-size:12px;color:var(--mute);border-to
     </div>
   </div>
 
-  <!-- PDF PASSWORD PANEL (new) -->
+  <!-- PDF PASSWORD PANEL -->
   <div class="tool-panel" id="tool-pdf-password">
     <div class="panel-title">🔐 PDF Password</div>
     <div class="panel-sub">Encrypt a PDF with a password, or remove password from a protected file</div>
@@ -310,7 +318,7 @@ footer{text-align:center;padding:16px;font-size:12px;color:var(--mute);border-to
     </div>
   </div>
 
-  <!-- ROTATE PDF PANEL (new) -->
+  <!-- ROTATE PDF PANEL -->
   <div class="tool-panel" id="tool-pdf-rotate">
     <div class="panel-title">🔄 Rotate PDF</div>
     <div class="panel-sub">Rotate all pages of a PDF by 90°, 180°, or 270°</div>
@@ -336,7 +344,7 @@ footer{text-align:center;padding:16px;font-size:12px;color:var(--mute);border-to
     </div>
   </div>
 
-  <!-- EXTRACT IMAGES FROM PDF PANEL (new) -->
+  <!-- EXTRACT IMAGES FROM PDF PANEL -->
   <div class="tool-panel" id="tool-pdf-extract-images">
     <div class="panel-title">🖼️ Extract Images from PDF</div>
     <div class="panel-sub">Extract all images embedded in a PDF and download them as a ZIP archive</div>
@@ -357,7 +365,7 @@ footer{text-align:center;padding:16px;font-size:12px;color:var(--mute);border-to
     </div>
   </div>
 
-  <!-- IMAGE TO PDF PANEL (new) -->
+  <!-- IMAGE TO PDF PANEL -->
   <div class="tool-panel" id="tool-img2pdf">
     <div class="panel-title">🖼️➡️📄 Image to PDF</div>
     <div class="panel-sub">Convert one or more images into a single PDF document</div>
@@ -402,7 +410,7 @@ footer{text-align:center;padding:16px;font-size:12px;color:var(--mute);border-to
   </div>
 </div>
 
-<!-- IMAGE SECTION (unchanged) -->
+<!-- IMAGE SECTION -->
 <div class="section" id="section-image">
   <div style="padding-top:4px">
     <p class="section-title">Image Tools</p>
@@ -618,13 +626,13 @@ footer{text-align:center;padding:16px;font-size:12px;color:var(--mute);border-to
 <footer>© 2026 TeaJay Konsult Ltd. All rights reserved.</footer>
 
 <script>
-// Helper functions
 const APP_URL = 'https://teajay-pdf-image-toolkit.vercel.app';
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 let pdfDoc = null;
 let currentPage = 1;
 let totalPages = 0;
+let currentScale = 1.5;
 let mergeFiles = [];
 let splitPdfBytes = null;
 let splitTotalPages = 0;
@@ -635,7 +643,7 @@ let rotatePdfBytes = null;
 let extractImagesPdfBytes = null;
 let img2pdfFiles = [];
 
-// Tab switching
+// ----- Tab switching and helpers -----
 function switchMainTab(name, el) {
   document.querySelectorAll('.main-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -658,7 +666,7 @@ function handleDrop(e, inputId, callback) {
   if (file) callback(file);
 }
 
-// ----- PDF TOOLS (existing) -----
+// ----- PDF VIEWER with ZOOM -----
 async function loadPDFView(file) {
   if (!file) return;
   showToast('Loading PDF...');
@@ -668,25 +676,50 @@ async function loadPDFView(file) {
     totalPages = pdfDoc.numPages;
     currentPage = 1;
     document.getElementById('pdfViewer').classList.add('show');
-    await renderPage(currentPage);
+    await renderPage(currentPage, currentScale);
     showToast(`✅ PDF loaded — ${totalPages} page${totalPages > 1 ? 's' : ''}`);
-  } catch (e) { showToast('❌ Could not load PDF'); }
+  } catch (e) {
+    showToast('❌ Could not load PDF: ' + e.message);
+  }
 }
-async function renderPage(num) {
+
+async function renderPage(num, scale) {
+  if (!pdfDoc) return;
   const page = await pdfDoc.getPage(num);
-  const viewport = page.getViewport({ scale: 1.5 });
+  const viewport = page.getViewport({ scale: scale });
   const canvas = document.getElementById('pdfCanvas');
   const ctx = canvas.getContext('2d');
-  canvas.height = viewport.height;
   canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  canvas.style.width = '100%';
+  canvas.style.height = 'auto';
   await page.render({ canvasContext: ctx, viewport }).promise;
   document.getElementById('pageInfo').textContent = `Page ${num} of ${totalPages}`;
   document.getElementById('prevBtn').disabled = num <= 1;
   document.getElementById('nextBtn').disabled = num >= totalPages;
 }
-function prevPage() { if (currentPage > 1) { currentPage--; renderPage(currentPage); } }
-function nextPage() { if (currentPage < totalPages) { currentPage++; renderPage(currentPage); } }
 
+function setZoom(value) {
+  currentScale = parseFloat(value);
+  document.getElementById('zoomVal').textContent = Math.round(currentScale * 100) + '%';
+  renderPage(currentPage, currentScale);
+}
+
+function prevPage() {
+  if (currentPage > 1) {
+    currentPage--;
+    renderPage(currentPage, currentScale);
+  }
+}
+
+function nextPage() {
+  if (currentPage < totalPages) {
+    currentPage++;
+    renderPage(currentPage, currentScale);
+  }
+}
+
+// ----- Extract Text -----
 async function extractText(file) {
   if (!file) return;
   document.getElementById('prog-extract').classList.add('show');
@@ -720,6 +753,7 @@ function copyExtractedText() {
   navigator.clipboard.writeText(text).then(() => showToast('✅ Text copied to clipboard!'));
 }
 
+// ----- Merge -----
 function addMergeFiles(files) {
   Array.from(files).forEach(f => { if (f.type === 'application/pdf') mergeFiles.push(f); });
   renderMergeList();
@@ -761,6 +795,7 @@ async function mergePDFs() {
   } catch (e) { showToast('❌ Merge failed. Please try again.'); }
 }
 
+// ----- Split -----
 async function loadSplitPDF(file) {
   if (!file) return;
   try {
@@ -801,6 +836,7 @@ async function splitPDF() {
   } catch (e) { showToast('❌ Split failed. Please try again.'); }
 }
 
+// ----- PDF to Images -----
 async function loadPDFForImages(file) {
   if (!file) return;
   document.getElementById('pdfimgInfo').textContent = 'Converting...';
@@ -838,29 +874,7 @@ async function loadPDFForImages(file) {
   }
 }
 
-async function getPDFInfo(file) {
-  if (!file) return;
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const { PDFDocument } = PDFLib;
-    const pdf = await PDFDocument.load(arrayBuffer);
-    const pdfjs = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
-    const meta = await pdfjs.getMetadata().catch(() => ({}));
-    const info = meta.info || {};
-    const content = `📄 File name: ${file.name}
-📦 File size: ${formatSize(file.size)}
-📃 Total pages: ${pdf.getPageCount()}
-✍️ Author: ${info.Author || 'Unknown'}
-📅 Created: ${info.CreationDate ? new Date(info.CreationDate).toLocaleDateString() : 'Unknown'}
-🔧 Producer: ${info.Producer || 'Unknown'}
-🔐 Encrypted: ${pdf.isEncrypted ? 'Yes' : 'No'}`;
-    document.getElementById('infoContent').textContent = content;
-    document.getElementById('infoResult').classList.add('show');
-    showToast('✅ PDF info loaded');
-  } catch (e) { showToast('❌ Could not read PDF info'); }
-}
-
-// New PDF features
+// ----- PDF Password -----
 async function loadPasswordPDF(file) {
   if (!file) return;
   passwordPdfBytes = await file.arrayBuffer();
@@ -883,13 +897,6 @@ async function applyPassword() {
       document.getElementById('passwordInfo').textContent = `PDF encrypted with password. Size: ${formatSize(newBytes.length)}`;
       document.getElementById('passwordDownload').onclick = () => downloadBlob(url, 'protected.pdf');
     } else {
-      // Remove password – we need to load without password, then save.
-      // If the PDF is password-protected, we can't load it without the password.
-      // For simplicity, we'll attempt to load without password; if it fails, we ask for the password.
-      // However, pdf-lib doesn't support loading with password directly. We'll use pdf.js to load with password first.
-      // For brevity, we'll assume the PDF is not password-protected, or we'll just save it as is (no encryption).
-      // A full implementation would prompt for the password to decrypt.
-      // For this tool, we'll treat "remove password" as "remove encryption" only if it's already unencrypted.
       if (pdf.isEncrypted) {
         showToast('❌ Cannot remove password automatically. Try re‑saving the PDF.');
         return;
@@ -905,6 +912,7 @@ async function applyPassword() {
   } catch (e) { showToast('❌ Operation failed'); }
 }
 
+// ----- Rotate PDF -----
 async function loadRotatePDF(file) {
   if (!file) return;
   rotatePdfBytes = await file.arrayBuffer();
@@ -932,6 +940,7 @@ async function rotatePDF() {
   } catch (e) { showToast('❌ Rotation failed'); }
 }
 
+// ----- Extract Images from PDF -----
 async function loadExtractImagesPDF(file) {
   if (!file) return;
   extractImagesPdfBytes = await file.arrayBuffer();
@@ -950,7 +959,6 @@ async function extractImagesFromPDF() {
     for (let i = 1; i <= total; i++) {
       const page = await pdf.getPage(i);
       const ops = await page.getOperatorList();
-      const imagePromises = [];
       for (let j = 0; j < ops.fnArray.length; j++) {
         if (ops.fnArray[j] === pdfjsLib.OPS.paintImageXObject) {
           const imgName = ops.argsArray[j][0];
@@ -964,8 +972,7 @@ async function extractImagesFromPDF() {
             imageData.data.set(imgObj.data);
             ctx.putImageData(imageData, 0, 0);
             const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-            zip.file(`page${i}_img${imageCount+1}.png`, blob);
-            imageCount++;
+            zip.file(`page${i}_img${++imageCount}.png`, blob);
           }
         }
       }
@@ -987,7 +994,7 @@ async function extractImagesFromPDF() {
 }
 document.getElementById('extractImagesDownload')?.addEventListener('click', extractImagesFromPDF);
 
-// Image to PDF
+// ----- Image to PDF -----
 function addImageToPDFFiles(files) {
   Array.from(files).forEach(f => { if (f.type.startsWith('image/')) img2pdfFiles.push(f); });
   renderImageToPDFList();
@@ -1029,7 +1036,30 @@ async function convertImagesToPDF() {
   } catch (e) { showToast('❌ Conversion failed'); }
 }
 
-// Image tools (unchanged, but included for completeness)
+// ----- PDF Info -----
+async function getPDFInfo(file) {
+  if (!file) return;
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const { PDFDocument } = PDFLib;
+    const pdf = await PDFDocument.load(arrayBuffer);
+    const pdfjs = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+    const meta = await pdfjs.getMetadata().catch(() => ({}));
+    const info = meta.info || {};
+    const content = `📄 File name: ${file.name}
+📦 File size: ${formatSize(file.size)}
+📃 Total pages: ${pdf.getPageCount()}
+✍️ Author: ${info.Author || 'Unknown'}
+📅 Created: ${info.CreationDate ? new Date(info.CreationDate).toLocaleDateString() : 'Unknown'}
+🔧 Producer: ${info.Producer || 'Unknown'}
+🔐 Encrypted: ${pdf.isEncrypted ? 'Yes' : 'No'}`;
+    document.getElementById('infoContent').textContent = content;
+    document.getElementById('infoResult').classList.add('show');
+    showToast('✅ PDF info loaded');
+  } catch (e) { showToast('❌ Could not read PDF info'); }
+}
+
+// ----- Image Tools -----
 function loadImageTool(file, tool) {
   if (!file) return;
   imageFiles[tool] = file;
@@ -1055,6 +1085,7 @@ function loadImageTool(file, tool) {
   const resultId = tool === 'watermark' ? 'wmResult' : tool + 'Result';
   document.getElementById(resultId)?.classList.remove('show');
 }
+
 function compressImage() {
   const file = imageFiles['compress'];
   if (!file) return;
@@ -1073,6 +1104,7 @@ function compressImage() {
     showToast(`✅ Compressed! Saved ${saved > 0 ? saved + '%' : 'file ready'}`);
   }, 'image/jpeg', quality);
 }
+
 function resizeImage() {
   const file = imageFiles['resize'];
   if (!file) return;
@@ -1091,6 +1123,7 @@ function resizeImage() {
     showToast('✅ Image resized!');
   }, file.type || 'image/jpeg');
 }
+
 function convertImage() {
   const file = imageFiles['convert'];
   if (!file) return;
@@ -1109,6 +1142,7 @@ function convertImage() {
     showToast(`✅ Converted to ${ext.toUpperCase()}!`);
   }, format, 0.92);
 }
+
 function cropImage() {
   const file = imageFiles['crop'];
   if (!file) return;
@@ -1129,6 +1163,7 @@ function cropImage() {
     showToast('✅ Image cropped!');
   }, file.type || 'image/jpeg');
 }
+
 function addWatermark() {
   const file = imageFiles['watermark'];
   if (!file) return;
@@ -1165,6 +1200,7 @@ function addWatermark() {
   };
   showToast('✅ Watermark added!');
 }
+
 function rotateFlipImage() {
   const file = imageFiles['rotate'];
   if (!file) return;
@@ -1195,7 +1231,7 @@ function rotateFlipImage() {
   showToast('✅ Transformation applied!');
 }
 
-// Helpers
+// ----- Helpers -----
 function formatSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
